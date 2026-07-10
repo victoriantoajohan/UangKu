@@ -60,9 +60,9 @@ describe("regexParseTransactionText", () => {
   });
 });
 
-describe("parseTransactionText (no ANTHROPIC_API_KEY)", () => {
+describe("parseTransactionText (no GEMINI_API_KEY)", () => {
   beforeEach(() => {
-    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.GEMINI_API_KEY;
   });
 
   it("falls back to the regex parser for canonical format", async () => {
@@ -76,7 +76,7 @@ describe("parseTransactionText (no ANTHROPIC_API_KEY)", () => {
     });
   });
 
-  it("returns null for free-form text it cannot parse without Claude", async () => {
+  it("returns null for free-form text it cannot parse without Gemini", async () => {
     const result = await parseTransactionText("makan siang 25rb pakai GoPay");
     expect(result).toBeNull();
   });

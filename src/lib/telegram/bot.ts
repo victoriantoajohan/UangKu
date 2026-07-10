@@ -318,7 +318,7 @@ async function replySavedTransaction(
 }
 
 // ---------------------------------------------------------------------------
-// Receipt photo: OCR via Claude vision
+// Receipt photo: OCR via Gemini vision
 // ---------------------------------------------------------------------------
 
 async function handlePhoto(ctx: any) {

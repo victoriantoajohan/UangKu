@@ -1,4 +1,4 @@
-import { getAnthropicClient, CLAUDE_MODEL } from "./client";
+import { getGeminiClient, GEMINI_MODEL } from "./client";
 import { parseIndonesianAmount } from "@/lib/telegram/format";
 
 export interface ParsedTransaction {
@@ -80,32 +80,34 @@ function isValidParsed(value: unknown): value is ParsedTransaction {
 
 /**
  * Parses free-form natural-language transaction text (e.g. "makan siang 25rb
- * pakai GoPay") into a structured transaction using Claude. Falls back to a
+ * pakai GoPay") into a structured transaction using Gemini. Falls back to a
  * simple regex parser for the canonical "keluar/masuk <amount> ..." format
- * when Claude is unavailable or returns something unusable.
+ * when Gemini is unavailable or returns something unusable.
  */
 export async function parseTransactionText(
   text: string,
   context?: { walletNames: string[]; categoryNames: string[] }
 ): Promise<ParsedTransaction | null> {
-  const anthropic = getAnthropicClient();
+  const gemini = getGeminiClient();
 
-  if (anthropic) {
+  if (gemini) {
     try {
-      const response = await anthropic.messages.create({
-        model: CLAUDE_MODEL,
-        max_tokens: 300,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: buildUserPrompt(text, context) }],
+      const response = await gemini.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: buildUserPrompt(text, context),
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+          responseMimeType: "application/json",
+          maxOutputTokens: 300,
+        },
       });
 
-      const textBlock = response.content.find((b) => b.type === "text");
-      if (textBlock && textBlock.type === "text") {
-        const parsed = extractJson(textBlock.text);
+      if (response.text) {
+        const parsed = extractJson(response.text);
         if (isValidParsed(parsed)) return parsed;
       }
     } catch (error) {
-      console.error("Claude text parse failed, falling back to regex", error);
+      console.error("Gemini text parse failed, falling back to regex", error);
     }
   }
 

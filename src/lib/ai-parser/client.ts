@@ -1,13 +1,16 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 
-let client: Anthropic | null = null;
+let client: GoogleGenAI | null = null;
 
-export function getAnthropicClient(): Anthropic | null {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
+export function getGeminiClient(): GoogleGenAI | null {
+  if (!process.env.GEMINI_API_KEY) return null;
   if (!client) {
-    client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   }
   return client;
 }
 
-export const CLAUDE_MODEL = "claude-sonnet-5";
+// Free-tier model on Google AI Studio (no credit card required): 1,500
+// requests/day, 15 RPM, 1M TPM as of mid-2026. Supports both text and
+// vision (receipt photos) in the same model.
+export const GEMINI_MODEL = "gemini-2.5-flash";

@@ -3,7 +3,7 @@
 Aplikasi pencatat keuangan pribadi (pemasukan & pengeluaran) full-stack dengan dua kanal input:
 
 - **Web dashboard** — laporan, multi-dompet, budget per kategori, transaksi berulang.
-- **Telegram bot** — catat transaksi lewat teks natural ("makan siang 25rb pakai GoPay") atau kirim foto struk belanja (OCR otomatis via Claude vision).
+- **Telegram bot** — catat transaksi lewat teks natural ("makan siang 25rb pakai GoPay") atau kirim foto struk belanja (OCR otomatis via Gemini vision).
 
 > 📸 _Screenshot dashboard: `docs/screenshot-dashboard.png` (tambahkan setelah deploy)_
 > 📸 _Screenshot bot Telegram: `docs/screenshot-bot.png` (tambahkan setelah deploy)_
@@ -17,7 +17,7 @@ Aplikasi pencatat keuangan pribadi (pemasukan & pengeluaran) full-stack dengan d
 | ORM | Drizzle ORM | Tanpa native binary/engine (beda dengan Prisma), cold-start lebih cepat di serverless |
 | UI | Tailwind CSS + komponen ala shadcn/ui + Recharts | Ringan, bisa di-generate langsung di repo (bukan runtime dependency) |
 | Bot | grammY (webhook, bukan polling) | Webhook wajib untuk deployment serverless di Vercel |
-| AI | Anthropic Claude API (teks + vision) | Parsing bahasa natural & OCR struk dalam satu provider |
+| AI | Google Gemini API (`gemini-2.5-flash`, teks + vision) | Free tier tanpa kartu kredit (1.500 request/hari), tetap mendukung teks & vision dalam satu provider |
 | Auth | NextAuth.js (Google OAuth + Email magic link) | Session tersimpan di Postgres yang sama via `@auth/drizzle-adapter` |
 | Storage | Vercel Blob | Penyimpanan foto struk yang terintegrasi native dengan Vercel |
 | Deploy | Vercel + GitHub Actions | Auto-deploy saat merge ke `main`, preview deploy untuk PR |
@@ -38,7 +38,7 @@ src/
     schema.ts           # Skema Drizzle (users, wallets, transactions, dst.)
     index.ts            # Klien Drizzle (Neon HTTP driver)
   lib/
-    ai-parser/          # Parser teks & OCR struk via Claude
+    ai-parser/          # Parser teks & OCR struk via Gemini
     telegram/           # Bot grammY, format angka ID, matching dompet/kategori
     validations/        # Skema Zod per domain
     reports.ts, wallet-balance.ts, recurring.ts, budget-notify.ts, ...
@@ -58,8 +58,8 @@ vercel.json              # Konfigurasi Vercel Cron (recurring & recap)
 - **Transaksi**: income/expense/transfer, kategori (default + custom), sumber (web/telegram_text/telegram_receipt), lampiran foto struk. CRUD penuh di web; `/undo` di bot untuk batalkan transaksi terakhir.
 - **Telegram bot** (webhook, `grammY`):
   - `/start`, `/link <kode>`, `/saldo`, `/laporan`, `/undo`
-  - Teks bebas diparse dengan Claude ("makan siang 25rb pakai GoPay"), fallback regex untuk format baku (`keluar 25000 makan gopay`). Dompet/kategori yang ambigu ditanyakan lewat inline keyboard.
-  - Foto struk → OCR via Claude vision → konfirmasi ✅ Simpan / ✏️ Edit / ❌ Batal sebelum disimpan.
+  - Teks bebas diparse dengan Gemini ("makan siang 25rb pakai GoPay"), fallback regex untuk format baku (`keluar 25000 makan gopay`). Dompet/kategori yang ambigu ditanyakan lewat inline keyboard.
+  - Foto struk → OCR via Gemini vision → konfirmasi ✅ Simpan / ✏️ Edit / ❌ Batal sebelum disimpan.
   - Semua angka format Indonesia (`Rp 25.000`), paham singkatan `25rb`, `1.5jt`, `100k`.
 - **Budget** per kategori per bulan dengan progress bar, notifikasi Telegram otomatis saat >80% dan >100%.
 - **Laporan**: perbandingan bulan-ke-bulan, breakdown kategori, ekspor CSV.
@@ -125,6 +125,15 @@ pnpm build           # build production
 
 Karena Vercel adalah platform serverless, bot **wajib** berjalan dalam mode **webhook** (bukan long-polling) — ini sudah diimplementasikan di `/api/telegram/webhook`.
 
+## Cara Mendapatkan Gemini API Key (Gratis)
+
+Parsing teks natural dan OCR struk memakai [Google Gemini API](https://ai.google.dev), yang punya tingkat gratis tanpa kartu kredit:
+
+1. Buka [aistudio.google.com/apikey](https://aistudio.google.com/apikey), login dengan akun Google.
+2. Klik **Create API key** → pilih atau buat Google Cloud project (tidak perlu mengaktifkan billing untuk tingkat gratis).
+3. Salin API key → isi ke `GEMINI_API_KEY`.
+4. Model yang dipakai (`gemini-2.5-flash`) berada di tingkat gratis dengan kuota ±1.500 request/hari & 15 request/menit — lebih dari cukup untuk pemakaian pribadi. Jika kuota harian habis, bot otomatis fallback ke regex sederhana untuk format baku (`keluar 25000 makan gopay`) sehingga pencatatan teks tetap jalan; hanya OCR struk yang butuh Gemini secara penuh.
+
 ## Cara Membuat Database Neon
 
 1. Buat akun di [neon.tech](https://neon.tech), buat project baru.
@@ -135,7 +144,7 @@ Karena Vercel adalah platform serverless, bot **wajib** berjalan dalam mode **we
 
 1. Import repo GitHub ini di [vercel.com/new](https://vercel.com/new) — Vercel otomatis mendeteksi framework Next.js.
 2. Di **Project Settings → Environment Variables**, isi semua variabel dari `.env.example`:
-   - `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `ANTHROPIC_API_KEY`
+   - `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `GEMINI_API_KEY`
    - `NEXTAUTH_SECRET`, `NEXTAUTH_URL` (isi dengan domain production, mis. `https://uangku.vercel.app`)
    - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (jika pakai Google OAuth — buat di [Google Cloud Console](https://console.cloud.google.com/apis/credentials), authorized redirect URI: `https://<domain>/api/auth/callback/google`)
    - `EMAIL_SERVER` / `EMAIL_FROM` (jika pakai email magic link)
@@ -176,5 +185,6 @@ Jika secrets ini tidak diisi, job deploy otomatis di-skip dan kamu cukup mengand
 - **Drizzle ORM (bukan Prisma)** dipilih karena tidak memerlukan native query engine binary — start-up lebih cepat dan lebih ringan di cold-start serverless Vercel.
 - **Neon HTTP driver** (`@neondatabase/serverless`) dipakai (bukan koneksi TCP biasa) karena cocok dengan model request-per-invocation di serverless functions, tanpa connection pooling manual.
 - **grammY dengan webhook** (bukan polling) — polling butuh proses long-running yang tidak didukung serverless.
+- **Google Gemini (bukan Anthropic Claude)** dipilih sebagai provider AI karena tingkat gratisnya tanpa kartu kredit (`gemini-2.5-flash`, ±1.500 request/hari) mendukung teks *dan* vision dalam satu API — cocok untuk proyek personal yang tidak mau/tidak bisa membuka billing Anthropic. Kalau nanti butuh kualitas parsing lebih tinggi, tinggal ganti isi `src/lib/ai-parser/client.ts` ke provider lain karena pemanggilnya (`text-parser.ts`, `receipt-parser.ts`) sudah terisolasi dari detail SDK.
 - **NextAuth strategi `database`** (bukan JWT) dipilih agar sesi konsisten dan mudah di-invalidate, memakai tabel yang sama dengan domain data.
 - Semua endpoint API divalidasi dengan **Zod** dan di-scope per `userId` dari sesi NextAuth untuk mencegah kebocoran data antar pengguna.
