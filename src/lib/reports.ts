@@ -1,5 +1,5 @@
 import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
-import { subMonths, startOfMonth } from "date-fns";
+import { subMonths, startOfMonth, startOfWeek, endOfWeek } from "date-fns";
 import { db } from "@/db";
 import { categories, transactions } from "@/db/schema";
 import { getWalletBalancesForUser } from "@/lib/wallet-balance";
@@ -30,6 +30,23 @@ export async function getMonthlyTotals(userId: string, month: string) {
     if (tx.type === "expense") expense += Number(tx.amount);
   }
   return { income, expense, net: income - expense };
+}
+
+export async function getWeeklyTotals(userId: string, reference: Date = new Date()) {
+  const from = startOfWeek(reference, { weekStartsOn: 1 }); // Monday
+  const to = endOfWeek(reference, { weekStartsOn: 1 });
+
+  const rows = await db.query.transactions.findMany({
+    where: and(eq(transactions.userId, userId), gte(transactions.date, from), lt(transactions.date, to)),
+  });
+
+  let income = 0;
+  let expense = 0;
+  for (const tx of rows) {
+    if (tx.type === "income") income += Number(tx.amount);
+    if (tx.type === "expense") expense += Number(tx.amount);
+  }
+  return { income, expense, net: income - expense, from, to };
 }
 
 export async function getTrend(userId: string, months = 6) {
