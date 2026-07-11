@@ -1,14 +1,14 @@
-import { getServerSession } from "next-auth";
 import { eq } from "drizzle-orm";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUserId } from "@/lib/current-user";
 import { db } from "@/db";
 import { wallets } from "@/db/schema";
 import { getWalletBalancesForUser } from "@/lib/wallet-balance";
 import { WalletsClient } from "@/components/wallets/wallets-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function WalletsPage() {
-  const session = await getServerSession(authOptions);
-  const userId = session!.user.id;
+  const userId = await getCurrentUserId();
 
   const [userWallets, balances] = await Promise.all([
     db.query.wallets.findMany({ where: eq(wallets.userId, userId), orderBy: (w, { asc }) => [asc(w.createdAt)] }),

@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
-import { Menu, LogOut, Wallet as WalletIcon } from "lucide-react";
+import { Menu, Wallet as WalletIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./theme-toggle";
 import { SidebarNav } from "./sidebar-nav";
@@ -14,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-export function Topbar({ userName }: { userName?: string | null }) {
+export function Topbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -30,11 +29,7 @@ export function Topbar({ userName }: { userName?: string | null }) {
       </div>
 
       <div className="flex items-center gap-2">
-        {userName && <span className="hidden text-sm text-muted-foreground sm:inline">Halo, {userName}</span>}
         <ThemeToggle />
-        <Button variant="ghost" size="icon" aria-label="Keluar" onClick={() => signOut({ callbackUrl: "/" })}>
-          <LogOut className="h-5 w-5" />
-        </Button>
       </div>
 
       <Dialog open={mobileOpen} onOpenChange={setMobileOpen}>

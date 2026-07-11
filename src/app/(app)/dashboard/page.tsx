@@ -1,14 +1,14 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUserId } from "@/lib/current-user";
 import { getDashboardSummary } from "@/lib/reports";
 import { SummaryCards } from "@/components/dashboard/summary-cards";
 import { TrendChart } from "@/components/dashboard/trend-chart";
 import { CategoryDonut } from "@/components/dashboard/category-donut";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
-  const session = await getServerSession(authOptions);
-  const userId = session!.user.id;
+  const userId = await getCurrentUserId();
   const summary = await getDashboardSummary(userId);
 
   return (

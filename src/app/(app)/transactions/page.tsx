@@ -1,14 +1,14 @@
-import { getServerSession } from "next-auth";
 import { eq, isNull, or } from "drizzle-orm";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUserId } from "@/lib/current-user";
 import { db } from "@/db";
 import { categories, wallets } from "@/db/schema";
 import { getWalletBalancesForUser } from "@/lib/wallet-balance";
 import { TransactionsClient } from "@/components/transactions/transactions-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function TransactionsPage() {
-  const session = await getServerSession(authOptions);
-  const userId = session!.user.id;
+  const userId = await getCurrentUserId();
 
   const [userWallets, userCategories, balances] = await Promise.all([
     db.query.wallets.findMany({ where: eq(wallets.userId, userId) }),

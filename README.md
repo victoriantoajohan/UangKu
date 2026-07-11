@@ -5,6 +5,8 @@ Aplikasi pencatat keuangan pribadi (pemasukan & pengeluaran) full-stack dengan d
 - **Web dashboard** — laporan, multi-dompet, budget per kategori, transaksi berulang.
 - **Telegram bot** — catat transaksi lewat teks natural ("makan siang 25rb pakai GoPay") atau kirim foto struk belanja (OCR otomatis via Gemini vision).
 
+> ⚠️ **Tanpa login**: versi ini dijalankan tanpa autentikasi (single-user, untuk pemakaian pribadi) — siapa pun yang membuka URL deployment langsung masuk ke dashboard yang sama. Jangan bagikan URL production ke orang lain jika datanya bersifat pribadi. Lihat bagian "Catatan Keputusan Teknis" di bawah untuk detail trade-off-nya.
+
 > 📸 _Screenshot dashboard: `docs/screenshot-dashboard.png` (tambahkan setelah deploy)_
 > 📸 _Screenshot bot Telegram: `docs/screenshot-bot.png` (tambahkan setelah deploy)_
 
@@ -18,7 +20,7 @@ Aplikasi pencatat keuangan pribadi (pemasukan & pengeluaran) full-stack dengan d
 | UI | Tailwind CSS + komponen ala shadcn/ui + Recharts | Ringan, bisa di-generate langsung di repo (bukan runtime dependency) |
 | Bot | grammY (webhook, bukan polling) | Webhook wajib untuk deployment serverless di Vercel |
 | AI | Google Gemini API (`gemini-2.5-flash`, teks + vision) | Free tier tanpa kartu kredit (1.500 request/hari), tetap mendukung teks & vision dalam satu provider |
-| Auth | NextAuth.js (Google OAuth + Email magic link) | Session tersimpan di Postgres yang sama via `@auth/drizzle-adapter` |
+| Auth | Tidak ada (single-user) | Semua request memakai satu akun implisit yang dibuat otomatis; lihat catatan trade-off di bawah |
 | Storage | Vercel Blob | Penyimpanan foto struk yang terintegrasi native dengan Vercel |
 | Deploy | Vercel + GitHub Actions | Auto-deploy saat merge ke `main`, preview deploy untuk PR |
 
@@ -27,10 +29,9 @@ Aplikasi pencatat keuangan pribadi (pemasukan & pengeluaran) full-stack dengan d
 ```
 src/
   app/                  # Next.js App Router (pages + API routes)
-    (app)/              # Halaman dashboard yang butuh login (sidebar layout)
-    api/                # Route handlers: auth, wallets, transactions, budgets,
+    (app)/              # Halaman dashboard (sidebar layout, tanpa login)
+    api/                # Route handlers: wallets, transactions, budgets,
                          # recurring, reports, telegram webhook/link, cron
-    login/              # Halaman login (Google / email magic link)
   components/
     ui/                 # Primitif ala shadcn/ui (Button, Card, Dialog, dst.)
     dashboard/ wallets/ transactions/ budgets/ reports/ settings/ layout/
@@ -65,7 +66,7 @@ vercel.json              # Konfigurasi Vercel Cron (recurring & recap)
 - **Laporan**: perbandingan bulan-ke-bulan, breakdown kategori, ekspor CSV.
 - **Transaksi berulang** (gaji, tagihan langganan) dijalankan via Vercel Cron harian.
 - **Recap otomatis**: ringkasan mingguan (Senin pagi) dan bulanan (tanggal 1) dikirim ke Telegram.
-- Semua query di-scope per `userId` — tidak ada kebocoran data antar pengguna.
+- Semua query tetap di-scope per `userId` di level kode (siap dihidupkan kembali multi-user), meski saat ini hanya ada satu akun implisit karena login dinonaktifkan.
 
 ## Setup Lokal
 
@@ -88,7 +89,7 @@ pnpm install
 cp .env.example .env
 ```
 
-Isi setidaknya `DATABASE_URL`, `NEXTAUTH_SECRET` (generate dengan `openssl rand -base64 32`), dan `NEXTAUTH_URL=http://localhost:3000`. Lihat penjelasan lengkap tiap variabel di `.env.example`.
+Isi setidaknya `DATABASE_URL`. Lihat penjelasan lengkap tiap variabel di `.env.example`.
 
 ### 4. Migrasi & seed database
 
@@ -145,9 +146,6 @@ Parsing teks natural dan OCR struk memakai [Google Gemini API](https://ai.google
 1. Import repo GitHub ini di [vercel.com/new](https://vercel.com/new) — Vercel otomatis mendeteksi framework Next.js.
 2. Di **Project Settings → Environment Variables**, isi semua variabel dari `.env.example`:
    - `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `GEMINI_API_KEY`
-   - `NEXTAUTH_SECRET`, `NEXTAUTH_URL` (isi dengan domain production, mis. `https://uangku.vercel.app`)
-   - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (jika pakai Google OAuth — buat di [Google Cloud Console](https://console.cloud.google.com/apis/credentials), authorized redirect URI: `https://<domain>/api/auth/callback/google`)
-   - `EMAIL_SERVER` / `EMAIL_FROM` (jika pakai email magic link)
    - `BLOB_READ_WRITE_TOKEN` (otomatis terisi setelah menambahkan integrasi **Vercel Blob** di tab Storage)
    - `CRON_SECRET` (string acak — melindungi endpoint `/api/cron/*` dari akses publik)
    - `APP_URL` (domain production, dipakai oleh `scripts/set-webhook.ts`)
@@ -167,7 +165,7 @@ Script ini memanggil `setWebhook` Telegram API mengarah ke `https://<APP_URL>/ap
 
 ## Menghubungkan Akun Telegram ke Akun Web
 
-1. Login ke dashboard web → **Pengaturan** → **Hubungkan Telegram** → klik "Generate Kode OTP".
+1. Buka dashboard web → **Pengaturan** → **Hubungkan Telegram** → klik "Generate Kode OTP".
 2. Kirim `/link <kode>` ke bot di Telegram (kode berlaku 10 menit).
 3. Setelah terhubung, semua transaksi lewat bot otomatis tersimpan ke akun web yang sama.
 
@@ -186,5 +184,5 @@ Jika secrets ini tidak diisi, job deploy otomatis di-skip dan kamu cukup mengand
 - **Neon HTTP driver** (`@neondatabase/serverless`) dipakai (bukan koneksi TCP biasa) karena cocok dengan model request-per-invocation di serverless functions, tanpa connection pooling manual.
 - **grammY dengan webhook** (bukan polling) — polling butuh proses long-running yang tidak didukung serverless.
 - **Google Gemini (bukan Anthropic Claude)** dipilih sebagai provider AI karena tingkat gratisnya tanpa kartu kredit (`gemini-2.5-flash`, ±1.500 request/hari) mendukung teks *dan* vision dalam satu API — cocok untuk proyek personal yang tidak mau/tidak bisa membuka billing Anthropic. Kalau nanti butuh kualitas parsing lebih tinggi, tinggal ganti isi `src/lib/ai-parser/client.ts` ke provider lain karena pemanggilnya (`text-parser.ts`, `receipt-parser.ts`) sudah terisolasi dari detail SDK.
-- **NextAuth strategi `database`** (bukan JWT) dipilih agar sesi konsisten dan mudah di-invalidate, memakai tabel yang sama dengan domain data.
-- Semua endpoint API divalidasi dengan **Zod** dan di-scope per `userId` dari sesi NextAuth untuk mencegah kebocoran data antar pengguna.
+- **Tanpa login (NextAuth dilepas)**: atas permintaan, autentikasi (Google OAuth/email magic link via NextAuth) dihapus untuk menyederhanakan setup — deployment ini murni untuk satu pengguna. `src/lib/current-user.ts` meng-auto-buat satu akun implisit (`owner@uangku.local`) yang dipakai semua request. Konsekuensinya: **siapa pun yang tahu URL production bisa mengakses seluruh data** (termasuk generate kode `/link` Telegram) — tidak ada isolasi lagi seperti versi berlogin. Kalau butuh multi-user/privasi lagi, kembalikan NextAuth (kodenya masih ada di riwayat git) atau batasi akses lewat Vercel Deployment Protection / password.
+- Semua endpoint API tetap divalidasi dengan **Zod** dan di-scope per `userId` di level query — jika NextAuth dihidupkan kembali, isolasi antar pengguna langsung aktif lagi tanpa mengubah skema database.

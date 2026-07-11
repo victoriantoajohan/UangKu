@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { ZodError } from "zod";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUserId } from "@/lib/current-user";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -9,13 +8,9 @@ export class ApiError extends Error {
   }
 }
 
-/** Resolves the current session's user id, or throws a 401 ApiError. */
+/** UangKu runs without login — resolves the single implicit user account. */
 export async function requireUserId(): Promise<string> {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    throw new ApiError(401, "Unauthorized");
-  }
-  return session.user.id;
+  return getCurrentUserId();
 }
 
 export function handleApiError(error: unknown): NextResponse {

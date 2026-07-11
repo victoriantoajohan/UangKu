@@ -13,7 +13,6 @@ import {
   jsonb,
   date,
 } from "drizzle-orm/pg-core";
-import type { AdapterAccount } from "next-auth/adapters";
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -58,7 +57,11 @@ export const transferDirectionEnum = pgEnum("transfer_direction", [
 ]);
 
 // ---------------------------------------------------------------------------
-// NextAuth (Auth.js) required tables — see @auth/drizzle-adapter
+// Users. UangKu runs without login (single-user personal deployment) — see
+// lib/current-user.ts, which resolves/creates the one implicit account.
+// `accounts`/`sessions`/`verification_tokens` below are unused leftovers from
+// a removed NextAuth integration, kept only so no destructive migration is
+// needed against already-provisioned databases.
 // ---------------------------------------------------------------------------
 
 export const users = pgTable("users", {
@@ -80,7 +83,7 @@ export const accounts = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    type: text("type").$type<AdapterAccount["type"]>().notNull(),
+    type: text("type").notNull(),
     provider: text("provider").notNull(),
     providerAccountId: text("provider_account_id").notNull(),
     refresh_token: text("refresh_token"),
